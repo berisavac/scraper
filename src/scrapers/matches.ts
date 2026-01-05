@@ -20,16 +20,6 @@ async function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function isAllowedLeague(country: string, leagueName: string): boolean {
-  const fullName = `${country} - ${leagueName}`.toLowerCase();
-  const countryLower = country.toLowerCase();
-
-  return ALLOWED_LEAGUES.some(allowed => {
-    // Check exact match or country match
-    return fullName.includes(allowed) || countryLower.includes(allowed);
-  });
-}
-
 function extractMatchIdFromUrl(url: string): string {
   // Extract mid= query param
   const midMatch = url.match(/mid=([^&]+)/);
@@ -124,10 +114,11 @@ async function scrapeMatches(): Promise<MatchSummary[]> {
       const results: Array<{
         id: string;
         league: string;
-        homeTeam: string;
-        awayTeam: string;
+        homeTeam: { name: string; logo?: string };
+        awayTeam: { name: string; logo?: string };
         time: string;
         url: string;
+        score: string;
       }> = [];
 
       let currentCountry = '';
@@ -172,23 +163,38 @@ async function scrapeMatches(): Promise<MatchSummary[]> {
           const awayEl = el.querySelector('.event__awayParticipant .wcl-name_jjfMf');
 
           // Fallback selectors if specific ones don't work
-          const homeTeam = homeEl?.textContent?.trim() ||
+          const homeTeamName = homeEl?.textContent?.trim() ||
                           el.querySelector('.event__homeParticipant')?.textContent?.trim() || '';
-          const awayTeam = awayEl?.textContent?.trim() ||
+          const awayTeamName = awayEl?.textContent?.trim() ||
                           el.querySelector('.event__awayParticipant')?.textContent?.trim() || '';
+
+          // Get team logos
+          const homeLogoEl = el.querySelector('.event__logo--home img') as HTMLImageElement | null;
+          const awayLogoEl = el.querySelector('.event__logo--away img') as HTMLImageElement | null;
+
+          const homeTeam = { name: homeTeamName, logo: homeLogoEl?.src };
+          const awayTeam = { name: awayTeamName, logo: awayLogoEl?.src };
 
           // Get time/status
           const timeEl = el.querySelector('.event__stage--block');
           const time = timeEl?.textContent?.trim() || '';
 
-          if (homeTeam && awayTeam && matchId) {
+          // Get score (if match has started)
+          const homeScoreEl = el.querySelector('.event__score--home');
+          const awayScoreEl = el.querySelector('.event__score--away');
+          const homeScore = homeScoreEl?.textContent?.trim() || '';
+          const awayScore = awayScoreEl?.textContent?.trim() || '';
+          const score = homeScore && awayScore ? `${homeScore}-${awayScore}` : '-';
+
+          if (homeTeam.name && awayTeam.name && matchId) {
             results.push({
               id: matchId,
               league: `${currentCountry}: ${currentLeague}`,
               homeTeam,
               awayTeam,
               time,
-              url: href || `/match/${matchId}/`
+              url: href || `/match/${matchId}/`,
+              score
             });
           }
         }

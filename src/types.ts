@@ -7,10 +7,11 @@ export interface MatchListResponse {
 export interface MatchSummary {
   id: string;           // match ID iz URL-a (npr. "6FtLgwuC")
   league: string;       // "England - Premier League"
-  homeTeam: string;     // "Leicester"
-  awayTeam: string;     // "West Brom"
+  homeTeam: TeamInfo;   // { name: "Leicester", logo: "https://..." }
+  awayTeam: TeamInfo;   // { name: "West Brom", logo: "https://..." }
   time: string;         // "15:00" ili status ako je live/finished
   url: string;          // relativan URL ka meču
+  score: string;        // "2-1" ili "-" ako meč nije počeo
 }
 
 // Match Details Response
