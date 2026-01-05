@@ -169,8 +169,8 @@ async function scrapeMatches(): Promise<MatchSummary[]> {
                           el.querySelector('.event__awayParticipant')?.textContent?.trim() || '';
 
           // Get team logos
-          const homeLogoEl = el.querySelector('.event__logo--home img') as HTMLImageElement | null;
-          const awayLogoEl = el.querySelector('.event__logo--away img') as HTMLImageElement | null;
+          const homeLogoEl = el.querySelector('.event__homeParticipant img[data-testid="wcl-participantLogo"]') as HTMLImageElement | null;
+          const awayLogoEl = el.querySelector('.event__awayParticipant img[data-testid="wcl-participantLogo"]') as HTMLImageElement | null;
 
           const homeTeam = { name: homeTeamName, logo: homeLogoEl?.src };
           const awayTeam = { name: awayTeamName, logo: awayLogoEl?.src };
