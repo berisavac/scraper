@@ -62,7 +62,9 @@ function shouldRefreshMatchList(
 
 export function getMatchListCache(): MatchListResponse | null {
   const cacheKey = `matches-${getToday()}`;
+  console.log('cacheKey', cacheKey);
   const cached = cache.get(cacheKey);
+  console.log('cached', cached);
 
   if (!cached || isStale(cached.date)) {
     cache.delete(cacheKey);

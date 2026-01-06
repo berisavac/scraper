@@ -5,6 +5,72 @@ const MAX_RETRIES = 2;
 async function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
+async function closeAllPopups(page) {
+    try {
+        // Cookie consent
+        const cookieSelectors = [
+            '#onetrust-accept-btn-handler',
+            'button[id*="accept"]',
+            'button:has-text("Accept")',
+        ];
+        for (const selector of cookieSelectors) {
+            try {
+                const button = await page.$(selector);
+                if (button && await button.isVisible()) {
+                    await button.click();
+                    await delay(500);
+                    break;
+                }
+            }
+            catch { /* next */ }
+        }
+        // Close "I understand" popup
+        await page.locator('button:has-text("I understand")').click().catch(() => { });
+        await delay(300);
+        // Close any other popups/modals
+        await page.locator('button:has-text("Close")').click().catch(() => { });
+        await page.locator('[class*="close"]').first().click().catch(() => { });
+        // Press Escape to close remaining modals
+        await page.keyboard.press('Escape');
+        await delay(300);
+    }
+    catch {
+        // Ignore popup errors
+    }
+}
+async function clickTab(page, tabName) {
+    try {
+        // Try link with text
+        const selectors = [
+            `a:has-text("${tabName}")`,
+            `button:has-text("${tabName}")`,
+            `[class*="tabs"] >> text="${tabName}"`,
+            `[class*="subTabs"] >> text="${tabName}"`,
+        ];
+        for (const selector of selectors) {
+            try {
+                const tab = await page.$(selector);
+                if (tab && await tab.isVisible()) {
+                    await tab.click();
+                    await delay(1500);
+                    return true;
+                }
+            }
+            catch { /* next */ }
+        }
+        // Try text locator
+        try {
+            await page.getByText(tabName, { exact: false }).first().click();
+            await delay(1500);
+            return true;
+        }
+        catch { /* next */ }
+        return false;
+    }
+    catch {
+        return false;
+    }
+}
 async function getMatchDetailsWithRetry(matchId) {
     let lastError = null;
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -14,9 +80,8 @@ async function getMatchDetailsWithRetry(matchId) {
         catch (error) {
             lastError = error;
             console.error(`Attempt ${attempt} failed:`, error);
-            if (attempt < MAX_RETRIES) {
+            if (attempt < MAX_RETRIES)
                 await delay(2000);
-            }
         }
     }
     throw lastError || new Error('Failed to scrape match details');
@@ -30,25 +95,18 @@ async function scrapeMatchDetails(matchId) {
         });
         const page = await browser.newPage();
         await page.setViewportSize({ width: 1920, height: 1080 });
-        await page.setExtraHTTPHeaders({
-            'Accept-Language': 'en-US,en;q=0.9',
-        });
+        await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
         const matchUrl = `${FLASHSCORE_BASE}/match/${matchId}/`;
-        await page.goto(matchUrl, {
-            waitUntil: 'networkidle',
-            timeout: TIMEOUT
-        });
-        // Wait for match header to load
-        await page.waitForSelector('.duelParticipant', { timeout: TIMEOUT });
-        await delay(1500);
-        // Scrape basic match info
+        await page.goto(matchUrl, { waitUntil: 'networkidle', timeout: TIMEOUT });
+        await delay(2000);
+        await closeAllPopups(page);
+        await delay(1000);
+        // Get basic info including team names
         const basicInfo = await scrapeBasicInfo(page);
-        // Scrape standings
-        const standings = await scrapeStandings(page, matchId);
-        // Scrape H2H
-        const h2h = await scrapeH2H(page, matchId);
-        // Scrape form (home form for home team, away form for away team)
-        const { homeForm, awayForm } = await scrapeForm(page, matchId);
+        // Try STANDINGS tab (may not exist)
+        const standings = await scrapeStandings(page, basicInfo.homeTeam.name, basicInfo.awayTeam.name);
+        // H2H tab - get h2h and form data
+        const { h2h, homeForm, awayForm } = await scrapeH2HData(page, basicInfo.homeTeam.name, basicInfo.awayTeam.name);
         return {
             id: matchId,
             ...basicInfo,
@@ -59,192 +117,273 @@ async function scrapeMatchDetails(matchId) {
         };
     }
     finally {
-        if (browser) {
+        if (browser)
             await browser.close();
-        }
     }
 }
 async function scrapeBasicInfo(page) {
     return await page.evaluate(() => {
-        // League info
-        const leagueEl = document.querySelector('.tournamentHeader__country');
-        const league = leagueEl?.textContent?.trim() || '';
+        // League - skip, already available from /matches endpoint
+        const league = '';
         // Home team
-        const homeNameEl = document.querySelector('.duelParticipant__home .participant__participantName');
-        const homeLogoEl = document.querySelector('.duelParticipant__home .participant__image');
+        const homeEl = document.querySelector('.duelParticipant__home .participant__participantName');
+        const homeName = homeEl?.textContent?.trim() || '';
+        const homeLogoEl = document.querySelector('.duelParticipant__home img');
         // Away team
-        const awayNameEl = document.querySelector('.duelParticipant__away .participant__participantName');
-        const awayLogoEl = document.querySelector('.duelParticipant__away .participant__image');
+        const awayEl = document.querySelector('.duelParticipant__away .participant__participantName');
+        const awayName = awayEl?.textContent?.trim() || '';
+        const awayLogoEl = document.querySelector('.duelParticipant__away img');
         // Time/Date
         const dateTimeEl = document.querySelector('.duelParticipant__startTime');
         const dateTime = dateTimeEl?.textContent?.trim() || '';
-        const [date, time] = dateTime.split(' ');
-        // Score (if match has started/finished)
-        const homeScoreEl = document.querySelector('.duelParticipant__score .detailScore__wrapper span:first-child');
-        const awayScoreEl = document.querySelector('.duelParticipant__score .detailScore__wrapper span:last-child');
-        const homeScore = homeScoreEl?.textContent?.trim();
-        const awayScore = awayScoreEl?.textContent?.trim();
-        const score = homeScore && awayScore ? `${homeScore}-${awayScore}` : undefined;
+        // Score
+        const scoreEl = document.querySelector('.detailScore__wrapper');
+        let score;
+        if (scoreEl) {
+            const spans = scoreEl.querySelectorAll('span');
+            if (spans.length >= 2) {
+                score = `${spans[0]?.textContent?.trim() || ''}-${spans[spans.length - 1]?.textContent?.trim() || ''}`;
+            }
+        }
         return {
             league,
-            homeTeam: {
-                name: homeNameEl?.textContent?.trim() || '',
-                logo: homeLogoEl?.src
-            },
-            awayTeam: {
-                name: awayNameEl?.textContent?.trim() || '',
-                logo: awayLogoEl?.src
-            },
-            time: time || dateTime,
-            date: date || new Date().toISOString().split('T')[0],
+            homeTeam: { name: homeName, logo: homeLogoEl?.src },
+            awayTeam: { name: awayName, logo: awayLogoEl?.src },
+            time: dateTime,
+            date: new Date().toISOString().split('T')[0],
             score
         };
     });
 }
-async function scrapeStandings(page, matchId) {
+async function scrapeStandings(page, homeTeamName, awayTeamName) {
     try {
-        // Navigate to standings tab
-        const standingsUrl = `${FLASHSCORE_BASE}/match/${matchId}/#/standings`;
-        await page.goto(standingsUrl, { waitUntil: 'networkidle', timeout: TIMEOUT });
-        await delay(1500);
-        // Try to click standings tab if exists
-        const standingsTab = await page.$('[href*="standings"]');
-        if (standingsTab) {
-            await standingsTab.click();
-            await delay(1500);
+        // Check if STANDINGS tab exists
+        const standingsTab = page.locator('button[data-testid="wcl-tab"]', { hasText: 'Standings' });
+        const tabCount = await standingsTab.count();
+        if (tabCount === 0) {
+            return { home: null, away: null };
         }
-        return await page.evaluate(() => {
-            const parseStandingsRow = (row) => {
-                const cells = row.querySelectorAll('td, .table__cell');
-                if (cells.length < 8)
-                    return null;
-                return {
-                    position: parseInt(cells[0]?.textContent?.trim() || '0'),
-                    played: parseInt(cells[2]?.textContent?.trim() || '0'),
-                    won: parseInt(cells[3]?.textContent?.trim() || '0'),
-                    drawn: parseInt(cells[4]?.textContent?.trim() || '0'),
-                    lost: parseInt(cells[5]?.textContent?.trim() || '0'),
-                    goalsFor: parseInt(cells[6]?.textContent?.trim()?.split(':')[0] || '0'),
-                    goalsAgainst: parseInt(cells[6]?.textContent?.trim()?.split(':')[1] || '0'),
-                    points: parseInt(cells[7]?.textContent?.trim() || '0')
-                };
-            };
-            // Find highlighted rows (current teams)
-            const highlightedRows = document.querySelectorAll('.table__row--highlighted, .ui-table__row--highlighted');
-            let homeStandings = null;
-            let awayStandings = null;
-            highlightedRows.forEach((row, index) => {
-                const parsed = parseStandingsRow(row);
-                if (parsed) {
-                    if (index === 0)
-                        homeStandings = parsed;
-                    else if (index === 1)
-                        awayStandings = parsed;
+        await standingsTab.first().click();
+        await page.waitForTimeout(2000);
+        // Scrape standings using specific selectors
+        const rows = await page.locator('.ui-table__row').all();
+        let homeStandings = null;
+        let awayStandings = null;
+        for (const row of rows) {
+            try {
+                const teamName = await row.locator('.tableCellParticipant__name').textContent() || '';
+                const teamNameLower = teamName.toLowerCase().trim();
+                const homeNameLower = homeTeamName.toLowerCase();
+                const awayNameLower = awayTeamName.toLowerCase();
+                // Check if this row is for home or away team
+                const isHomeTeam = teamNameLower.includes(homeNameLower) || homeNameLower.includes(teamNameLower);
+                const isAwayTeam = teamNameLower.includes(awayNameLower) || awayNameLower.includes(teamNameLower);
+                if (!isHomeTeam && !isAwayTeam)
+                    continue;
+                const position = parseInt(await row.locator('.tableCellRank').textContent() || '0');
+                const cells = await row.locator('.table__cell--value').all();
+                if (cells.length >= 7) {
+                    const mp = parseInt(await cells[0].textContent() || '0');
+                    const w = parseInt(await cells[1].textContent() || '0');
+                    const d = parseInt(await cells[2].textContent() || '0');
+                    const l = parseInt(await cells[3].textContent() || '0');
+                    const goals = await cells[4].textContent() || '0:0';
+                    const [goalsFor, goalsAgainst] = goals.split(':').map(n => parseInt(n) || 0);
+                    const pts = parseInt(await cells[6].textContent() || '0');
+                    const standings = {
+                        position,
+                        played: mp,
+                        won: w,
+                        drawn: d,
+                        lost: l,
+                        goalsFor,
+                        goalsAgainst,
+                        points: pts
+                    };
+                    if (isHomeTeam && !homeStandings) {
+                        homeStandings = standings;
+                    }
+                    if (isAwayTeam && !awayStandings) {
+                        awayStandings = standings;
+                    }
                 }
-            });
-            return { home: homeStandings, away: awayStandings };
-        });
+            }
+            catch {
+                // Skip row on error
+            }
+        }
+        return { home: homeStandings, away: awayStandings };
     }
-    catch (error) {
-        console.error('Error scraping standings:', error);
+    catch {
         return { home: null, away: null };
     }
 }
-async function scrapeH2H(page, matchId) {
+async function scrapeH2HData(page, homeTeamName, awayTeamName) {
+    const h2h = [];
+    const homeForm = [];
+    const awayForm = [];
     try {
-        // Navigate to H2H tab
-        const h2hUrl = `${FLASHSCORE_BASE}/match/${matchId}/#/h2h/overall`;
-        await page.goto(h2hUrl, { waitUntil: 'networkidle', timeout: TIMEOUT });
+        // Click H2H tab
+        await clickTab(page, 'H2H');
         await delay(1500);
-        return await page.evaluate(() => {
-            const results = [];
-            // Find H2H matches
-            const h2hRows = document.querySelectorAll('.h2h__row, [class*="h2h__section"] .h2h__row');
-            h2hRows.forEach(row => {
-                const dateEl = row.querySelector('.h2h__date');
-                const homeEl = row.querySelector('.h2h__homeParticipant, .h2h__participant--home');
-                const awayEl = row.querySelector('.h2h__awayParticipant, .h2h__participant--away');
-                const scoreEl = row.querySelector('.h2h__result, .h2h__score');
+        // Scrape LAST MATCHES section (h2h between teams - only matches with BOTH teams)
+        const h2hMatches = await scrapeMatchRows(page, homeTeamName, awayTeamName);
+        // Deduplicate by date + homeTeam + awayTeam + score
+        const uniqueH2H = h2hMatches.filter((match, index, self) => index === self.findIndex(m => m.date === match.date &&
+            m.homeTeam === match.homeTeam &&
+            m.awayTeam === match.awayTeam &&
+            m.score === match.score));
+        h2h.push(...uniqueH2H.slice(0, 10));
+        // Get home team form - click "{TEAM} - HOME" sub-tab
+        const homeTabName = `${homeTeamName.toUpperCase()} - HOME`;
+        if (await clickTab(page, homeTabName) || await clickTab(page, `${homeTeamName} - HOME`)) {
+            await delay(1500);
+            const homeMatches = await scrapeFormRows(page, true);
+            homeForm.push(...homeMatches.slice(0, 5));
+        }
+        // Get away team form - click "{TEAM} - AWAY" sub-tab
+        const awayTabName = `${awayTeamName.toUpperCase()} - AWAY`;
+        if (await clickTab(page, awayTabName) || await clickTab(page, `${awayTeamName} - AWAY`)) {
+            await delay(1500);
+            const awayMatches = await scrapeFormRows(page, false);
+            awayForm.push(...awayMatches.slice(0, 5));
+        }
+    }
+    catch {
+        // H2H scraping failed silently
+    }
+    return { h2h, homeForm, awayForm };
+}
+async function scrapeMatchRows(page, homeTeamName, awayTeamName) {
+    return await page.evaluate(({ homeName, awayName }) => {
+        const results = [];
+        // Find all match rows in H2H section
+        const rows = document.querySelectorAll('[class*="h2h__row"], [class*="rows__row"]');
+        rows.forEach(row => {
+            try {
+                // Date element
+                const dateEl = row.querySelector('[class*="date"]');
                 const date = dateEl?.textContent?.trim() || '';
+                // Teams
+                const homeEl = row.querySelector('[class*="homeParticipant"], [class*="home"]');
+                const awayEl = row.querySelector('[class*="awayParticipant"], [class*="away"]');
                 const homeTeam = homeEl?.textContent?.trim() || '';
                 const awayTeam = awayEl?.textContent?.trim() || '';
-                const score = scoreEl?.textContent?.trim() || '';
-                if (homeTeam && awayTeam) {
+                // Score - may be in separate elements for home/away goals
+                const scoreEl = row.querySelector('[class*="score"], [class*="result"]');
+                let score = '';
+                if (scoreEl) {
+                    // Try to find separate goal spans
+                    const goalSpans = scoreEl.querySelectorAll('span');
+                    if (goalSpans.length >= 2) {
+                        const homeGoals = goalSpans[0]?.textContent?.trim() || '';
+                        const awayGoals = goalSpans[goalSpans.length - 1]?.textContent?.trim() || '';
+                        score = `${homeGoals}-${awayGoals}`;
+                    }
+                    else {
+                        // Fallback: try to split the text
+                        const scoreText = scoreEl.textContent?.trim() || '';
+                        // If it's like "31", split in middle
+                        if (/^\d+$/.test(scoreText) && scoreText.length === 2) {
+                            score = `${scoreText[0]}-${scoreText[1]}`;
+                        }
+                        else if (/^\d+$/.test(scoreText) && scoreText.length > 2) {
+                            // Could be like "123" meaning 12-3 or 1-23, use middle split
+                            const mid = Math.floor(scoreText.length / 2);
+                            score = `${scoreText.slice(0, mid)}-${scoreText.slice(mid)}`;
+                        }
+                        else {
+                            score = scoreText;
+                        }
+                    }
+                }
+                // Filter: only include matches where BOTH teams are present
+                const homeNameLower = homeName.toLowerCase();
+                const awayNameLower = awayName.toLowerCase();
+                const matchHomeLower = homeTeam.toLowerCase();
+                const matchAwayLower = awayTeam.toLowerCase();
+                const hasHomeTeam = matchHomeLower.includes(homeNameLower) || matchAwayLower.includes(homeNameLower);
+                const hasAwayTeam = matchHomeLower.includes(awayNameLower) || matchAwayLower.includes(awayNameLower);
+                if (homeTeam && awayTeam && score && hasHomeTeam && hasAwayTeam) {
                     results.push({ date, homeTeam, awayTeam, score });
                 }
-            });
-            return results.slice(0, 10); // Limit to 10 H2H matches
+            }
+            catch { /* skip row */ }
         });
-    }
-    catch (error) {
-        console.error('Error scraping H2H:', error);
-        return [];
-    }
+        return results;
+    }, { homeName: homeTeamName, awayName: awayTeamName });
 }
-async function scrapeForm(page, matchId) {
-    try {
-        // Navigate to form section
-        const formUrl = `${FLASHSCORE_BASE}/match/${matchId}/#/h2h/home`;
-        await page.goto(formUrl, { waitUntil: 'networkidle', timeout: TIMEOUT });
-        await delay(1500);
-        const homeForm = await scrapeTeamForm(page, true);
-        // Navigate to away form
-        const awayFormUrl = `${FLASHSCORE_BASE}/match/${matchId}/#/h2h/away`;
-        await page.goto(awayFormUrl, { waitUntil: 'networkidle', timeout: TIMEOUT });
-        await delay(1500);
-        const awayForm = await scrapeTeamForm(page, false);
-        return { homeForm, awayForm };
-    }
-    catch (error) {
-        console.error('Error scraping form:', error);
-        return { homeForm: [], awayForm: [] };
-    }
-}
-async function scrapeTeamForm(page, isHome) {
-    return await page.evaluate((isHomeTeam) => {
+async function scrapeFormRows(page, isHome) {
+    return await page.evaluate((isHomeForm) => {
         const results = [];
-        // Find form rows in the first section (team's recent matches)
-        const formSection = document.querySelector('.h2h__section:first-child');
-        if (!formSection)
-            return results;
-        const rows = formSection.querySelectorAll('.h2h__row');
+        // Find match rows
+        const rows = document.querySelectorAll('[class*="h2h__row"], [class*="rows__row"]');
         rows.forEach(row => {
-            const dateEl = row.querySelector('.h2h__date');
-            const homeEl = row.querySelector('.h2h__homeParticipant, .h2h__participant--home');
-            const awayEl = row.querySelector('.h2h__awayParticipant, .h2h__participant--away');
-            const scoreEl = row.querySelector('.h2h__result, .h2h__score');
-            const date = dateEl?.textContent?.trim() || '';
-            const homeTeam = homeEl?.textContent?.trim() || '';
-            const awayTeam = awayEl?.textContent?.trim() || '';
-            const score = scoreEl?.textContent?.trim() || '';
-            // Determine if this team was home or away in this match
-            // and what the outcome was
-            const [homeGoals, awayGoals] = score.split('-').map(s => parseInt(s?.trim() || '0'));
-            // For home form, we want matches where the team played at home
-            // For away form, we want matches where the team played away
-            const opponent = isHomeTeam ? awayTeam : homeTeam;
-            const isTeamHome = isHomeTeam;
-            let outcome;
-            if (homeGoals === awayGoals) {
-                outcome = 'D';
+            try {
+                const dateEl = row.querySelector('[class*="date"]');
+                const date = dateEl?.textContent?.trim() || '';
+                const homeEl = row.querySelector('[class*="homeParticipant"], [class*="home"]');
+                const awayEl = row.querySelector('[class*="awayParticipant"], [class*="away"]');
+                const homeTeam = homeEl?.textContent?.trim() || '';
+                const awayTeam = awayEl?.textContent?.trim() || '';
+                // Score - handle separate elements for goals
+                const scoreEl = row.querySelector('[class*="score"], [class*="result"]');
+                let homeGoals = 0;
+                let awayGoals = 0;
+                if (scoreEl) {
+                    const goalSpans = scoreEl.querySelectorAll('span');
+                    if (goalSpans.length >= 2) {
+                        homeGoals = parseInt(goalSpans[0]?.textContent?.trim() || '0');
+                        awayGoals = parseInt(goalSpans[goalSpans.length - 1]?.textContent?.trim() || '0');
+                    }
+                    else {
+                        const scoreText = scoreEl.textContent?.trim() || '';
+                        const scoreMatch = scoreText.match(/(\d+)\s*[-:]\s*(\d+)/);
+                        if (scoreMatch) {
+                            homeGoals = parseInt(scoreMatch[1]);
+                            awayGoals = parseInt(scoreMatch[2]);
+                        }
+                        else if (/^\d{2}$/.test(scoreText)) {
+                            // "31" -> 3-1
+                            homeGoals = parseInt(scoreText[0]);
+                            awayGoals = parseInt(scoreText[1]);
+                        }
+                    }
+                }
+                // W/D/L indicator - look for colored indicator or text
+                const wdlEl = row.querySelector('[class*="wdl"], [class*="form"], [class*="icon"]');
+                const wdlClass = wdlEl?.className || '';
+                const wdlText = wdlEl?.textContent?.trim().toUpperCase() || '';
+                if (homeTeam && awayTeam && (homeGoals > 0 || awayGoals > 0 || homeGoals === awayGoals)) {
+                    // Determine outcome
+                    let outcome;
+                    if (wdlText === 'W' || wdlClass.includes('win'))
+                        outcome = 'W';
+                    else if (wdlText === 'D' || wdlClass.includes('draw'))
+                        outcome = 'D';
+                    else if (wdlText === 'L' || wdlClass.includes('loss') || wdlClass.includes('lose'))
+                        outcome = 'L';
+                    else {
+                        // Calculate from score (team is always home in HOME form, away in AWAY form)
+                        if (homeGoals === awayGoals)
+                            outcome = 'D';
+                        else if (isHomeForm ? homeGoals > awayGoals : awayGoals > homeGoals)
+                            outcome = 'W';
+                        else
+                            outcome = 'L';
+                    }
+                    results.push({
+                        date,
+                        opponent: isHomeForm ? awayTeam : homeTeam,
+                        result: `${homeGoals}-${awayGoals}`,
+                        outcome,
+                        isHome: isHomeForm
+                    });
+                }
             }
-            else if ((isTeamHome && homeGoals > awayGoals) || (!isTeamHome && awayGoals > homeGoals)) {
-                outcome = 'W';
-            }
-            else {
-                outcome = 'L';
-            }
-            if (opponent && score) {
-                results.push({
-                    date,
-                    opponent,
-                    result: score,
-                    outcome,
-                    isHome: isTeamHome
-                });
-            }
+            catch { /* skip row */ }
         });
-        return results.slice(0, 5); // Last 5 matches
+        return results;
     }, isHome);
 }
 export async function getMatchDetails(matchId) {

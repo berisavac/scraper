@@ -1,9 +1,10 @@
 // Allowed leagues filter
 export const ALLOWED_LEAGUES = [
-    "England: Premier League",
-    "England: Championship",
-    "Spain: LaLiga",
-    "Germany: Bundesliga",
-    "Italy: Serie A",
-    "France: Ligue 1"
+    "australia",
+    "england - premier league",
+    "england - championship",
+    "spain",
+    "germany",
+    "italy",
+    "france"
 ];

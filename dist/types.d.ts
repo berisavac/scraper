@@ -5,10 +5,11 @@ export interface MatchListResponse {
 export interface MatchSummary {
     id: string;
     league: string;
-    homeTeam: string;
-    awayTeam: string;
+    homeTeam: TeamInfo;
+    awayTeam: TeamInfo;
     time: string;
     url: string;
+    score: string;
 }
 export interface MatchDetailsResponse {
     id: string;

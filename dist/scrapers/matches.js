@@ -1,24 +1,62 @@
 import { chromium } from 'playwright';
-import { ALLOWED_LEAGUES } from '../types.js';
 const FLASHSCORE_URL = 'https://www.flashscore.com/';
 const TIMEOUT = 30000;
 const MAX_RETRIES = 2;
+// Updated allowed leagues
+const ALLOWED_LEAGUES = [
+    'australia',
+    'england - premier league',
+    'england - championship',
+    'spain',
+    'germany',
+    'italy',
+    'france'
+];
 async function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
-function isAllowedLeague(leagueName) {
-    return ALLOWED_LEAGUES.some(allowed => leagueName.toLowerCase().includes(allowed.toLowerCase().replace(': ', ' - ').replace(':', '')));
+function extractMatchIdFromUrl(url) {
+    // Extract mid= query param
+    const midMatch = url.match(/mid=([^&]+)/);
+    if (midMatch)
+        return midMatch[1];
+    // Fallback: extract from path
+    const pathMatch = url.match(/\/match\/([^/]+)/);
+    if (pathMatch)
+        return pathMatch[1];
+    return '';
 }
-function extractMatchId(url) {
-    // URL format: /match/xxxxx/ or similar
-    const match = url.match(/\/match\/([^/]+)/);
-    if (match)
-        return match[1];
-    // Alternative: extract from event ID
-    const eventMatch = url.match(/\/([A-Za-z0-9]{8})\/?$/);
-    if (eventMatch)
-        return eventMatch[1];
-    return url;
+async function closeCookiePopup(page) {
+    try {
+        const cookieSelectors = [
+            '#onetrust-accept-btn-handler',
+            'button[id*="accept"]',
+            'button[class*="accept"]',
+            '[aria-label*="Accept"]',
+            '[aria-label*="Agree"]',
+            'button:has-text("Accept")',
+            'button:has-text("I Accept")',
+            'button:has-text("Accept All")',
+            'button:has-text("Agree")',
+            '.onetrust-close-btn-handler',
+        ];
+        for (const selector of cookieSelectors) {
+            try {
+                const button = await page.$(selector);
+                if (button && await button.isVisible()) {
+                    await button.click();
+                    await delay(1000);
+                    return;
+                }
+            }
+            catch {
+                // Try next
+            }
+        }
+    }
+    catch {
+        // Ignore cookie popup errors
+    }
 }
 async function scrapeMatchesWithRetry() {
     let lastError = null;
@@ -45,7 +83,6 @@ async function scrapeMatches() {
         });
         const page = await browser.newPage();
         await page.setViewportSize({ width: 1920, height: 1080 });
-        // Set user agent to avoid bot detection
         await page.setExtraHTTPHeaders({
             'Accept-Language': 'en-US,en;q=0.9',
         });
@@ -53,69 +90,74 @@ async function scrapeMatches() {
             waitUntil: 'networkidle',
             timeout: TIMEOUT
         });
-        // Wait for matches to load
-        await page.waitForSelector('.sportName', { timeout: TIMEOUT });
-        // Small delay to ensure all dynamic content is loaded
         await delay(2000);
-        const matches = [];
-        // Get all league sections (each league has its events)
-        const leagueSections = await page.$$('.sportName.soccer');
-        if (leagueSections.length === 0) {
-            // Alternative: try to find events directly
-            const events = await page.$$('[class*="event__"]');
-            console.log(`Found ${events.length} events directly`);
-        }
-        // Scrape matches by evaluating in page context
+        // Close cookie popup
+        await closeCookiePopup(page);
+        await delay(1500);
+        // Scrape using correct selectors
         const scrapedData = await page.evaluate((allowedLeagues) => {
             const results = [];
-            // Find all league headers and their matches
-            const leagueHeaders = document.querySelectorAll('.event__header');
-            leagueHeaders.forEach(header => {
-                const leagueNameEl = header.querySelector('.event__title--name');
-                const countryEl = header.querySelector('.event__title--type');
-                if (!leagueNameEl)
+            let currentCountry = '';
+            let currentLeague = '';
+            // Get all league headers and matches from entire document
+            const allElements = document.querySelectorAll('.headerLeague__wrapper, .event__match');
+            allElements.forEach(el => {
+                // League header
+                if (el.classList.contains('headerLeague__wrapper')) {
+                    const countryEl = el.querySelector('.headerLeague__category-text');
+                    const leagueEl = el.querySelector('.headerLeague__title-text');
+                    currentCountry = countryEl?.textContent?.trim() || '';
+                    currentLeague = leagueEl?.textContent?.trim() || '';
                     return;
-                const leagueName = leagueNameEl.textContent?.trim() || '';
-                const country = countryEl?.textContent?.trim() || '';
-                const fullLeagueName = country ? `${country}: ${leagueName}` : leagueName;
-                // Check if this league is in our allowed list
-                const isAllowed = allowedLeagues.some(allowed => {
-                    const normalizedAllowed = allowed.toLowerCase();
-                    const normalizedFull = fullLeagueName.toLowerCase();
-                    return normalizedFull.includes(normalizedAllowed.replace(': ', ' ')) ||
-                        normalizedFull.includes(normalizedAllowed);
-                });
-                if (!isAllowed)
-                    return;
-                // Get all matches for this league (siblings until next header)
-                let sibling = header.nextElementSibling;
-                while (sibling && !sibling.classList.contains('event__header')) {
-                    if (sibling.classList.contains('event__match')) {
-                        const homeTeamEl = sibling.querySelector('.event__participant--home');
-                        const awayTeamEl = sibling.querySelector('.event__participant--away');
-                        const timeEl = sibling.querySelector('.event__time');
-                        const linkEl = sibling.querySelector('a') || sibling;
-                        const homeTeam = homeTeamEl?.textContent?.trim() || '';
-                        const awayTeam = awayTeamEl?.textContent?.trim() || '';
-                        const time = timeEl?.textContent?.trim() || '';
-                        // Get match ID from element ID or data attribute
-                        const matchId = sibling.id?.replace('g_1_', '') ||
-                            sibling.getAttribute('data-id') ||
-                            '';
-                        // Construct URL
-                        const url = matchId ? `/match/${matchId}/` : '';
-                        if (homeTeam && awayTeam && matchId) {
-                            results.push({
-                                id: matchId,
-                                league: fullLeagueName,
-                                homeTeam,
-                                awayTeam,
-                                time,
-                                url
-                            });
-                        }
+                }
+                // Match row
+                if (el.classList.contains('event__match')) {
+                    // Check if league is allowed
+                    const fullLeague = `${currentCountry} - ${currentLeague}`.toLowerCase();
+                    const countryLower = currentCountry.toLowerCase();
+                    const isAllowed = allowedLeagues.some(allowed => fullLeague.includes(allowed) || countryLower.includes(allowed));
+                    if (!isAllowed)
+                        return;
+                    // Get match link and ID
+                    const linkEl = el.querySelector('a.eventRowLink');
+                    const href = linkEl?.getAttribute('href') || '';
+                    // Extract match ID from URL (mid= param)
+                    const midMatch = href.match(/mid=([^&]+)/);
+                    const matchId = midMatch ? midMatch[1] : '';
+                    // Get teams - using the specific selector
+                    const homeEl = el.querySelector('.event__homeParticipant .wcl-name_jjfMf');
+                    const awayEl = el.querySelector('.event__awayParticipant .wcl-name_jjfMf');
+                    // Fallback selectors if specific ones don't work
+                    const homeTeamName = homeEl?.textContent?.trim() ||
+                        el.querySelector('.event__homeParticipant')?.textContent?.trim() || '';
+                    const awayTeamName = awayEl?.textContent?.trim() ||
+                        el.querySelector('.event__awayParticipant')?.textContent?.trim() || '';
+                    // Get team logos
+                    const homeLogoEl = el.querySelector('.event__homeParticipant img[data-testid="wcl-participantLogo"]');
+                    const awayLogoEl = el.querySelector('.event__awayParticipant img[data-testid="wcl-participantLogo"]');
+                    const homeTeam = { name: homeTeamName, logo: homeLogoEl?.src };
+                    const awayTeam = { name: awayTeamName, logo: awayLogoEl?.src };
+                    // Get time/status (stage for live/finished, time for scheduled)
+                    const stageEl = el.querySelector('.event__stage--block');
+                    const timeEl = el.querySelector('.event__time');
+                    const time = stageEl?.textContent?.trim() || timeEl?.textContent?.trim() || '';
+                    // Get score (if match has started)
+                    const homeScoreEl = el.querySelector('.event__score--home');
+                    const awayScoreEl = el.querySelector('.event__score--away');
+                    const homeScore = homeScoreEl?.textContent?.trim() || '';
+                    const awayScore = awayScoreEl?.textContent?.trim() || '';
+                    const score = homeScore && awayScore ? `${homeScore}-${awayScore}` : '-';
+                    if (homeTeam.name && awayTeam.name && matchId) {
+                        results.push({
+                            id: matchId,
+                            league: `${currentCountry}: ${currentLeague}`,
+                            homeTeam,
+                            awayTeam,
+                            time,
+                            url: href || `/match/${matchId}/`,
+                            score
+                        });
                     }
-                    sibling = sibling.nextElementSibling;
                 }
             });
             return results;
