@@ -175,9 +175,10 @@ async function scrapeMatches(): Promise<MatchSummary[]> {
           const homeTeam = { name: homeTeamName, logo: homeLogoEl?.src };
           const awayTeam = { name: awayTeamName, logo: awayLogoEl?.src };
 
-          // Get time/status
-          const timeEl = el.querySelector('.event__stage--block');
-          const time = timeEl?.textContent?.trim() || '';
+          // Get time/status (stage for live/finished, time for scheduled)
+          const stageEl = el.querySelector('.event__stage--block');
+          const timeEl = el.querySelector('.event__time');
+          const time = stageEl?.textContent?.trim() || timeEl?.textContent?.trim() || '';
 
           // Get score (if match has started)
           const homeScoreEl = el.querySelector('.event__score--home');
