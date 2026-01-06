@@ -7,7 +7,8 @@ import {
   getMatchListCache,
   setCache,
   deleteCache,
-  getCacheKey
+  getCacheKey,
+  clearAllMatchCache
 } from '../cache.js';
 
 const matches = new Hono();
@@ -57,6 +58,65 @@ matches.get('/refresh', async (c) => {
     return c.json(
       {
         error: 'Failed to refresh matches',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      },
+      500
+    );
+  }
+});
+
+// GET /api/matches/refresh-all - Briši cache i scrape sve
+matches.get('/refresh-all', async (c) => {
+  const limit = pLimit(3);
+
+  try {
+    const deletedCount = clearAllMatchCache();
+    console.log(`Cleared ${deletedCount} cache entries`);
+
+    console.log('Fetching fresh match list...');
+    const matchList = await getMatches();
+    setCache(getCacheKey('matches'), matchList);
+
+    const filteredMatches = matchList.matches.filter((match) =>
+      ALLOWED_LEAGUES.some((league) =>
+        match.league.toLowerCase().includes(league.toLowerCase())
+      )
+    );
+
+    console.log(`Scraping ${filteredMatches.length} matches from allowed leagues...`);
+
+    const errors: string[] = [];
+    const scrapedLeagues = new Set<string>();
+
+    const tasks = filteredMatches.map((match) =>
+      limit(async () => {
+        try {
+          console.log(`Scraping match: ${match.id} (${match.league})`);
+          const details = await getMatchDetails(match.id);
+          setCache(getCacheKey('match', match.id), details);
+          scrapedLeagues.add(match.league);
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          errors.push(`${match.id}: ${errorMsg}`);
+          console.error(`Error scraping match ${match.id}:`, errorMsg);
+        }
+      })
+    );
+
+    await Promise.all(tasks);
+
+    return c.json({
+      matches: filteredMatches,
+      totalScraped: filteredMatches.length - errors.length,
+      leagues: Array.from(scrapedLeagues),
+      errors,
+      fromCache: false
+    });
+  } catch (error) {
+    console.error('Error in /api/matches/refresh-all:', error);
+    return c.json(
+      {
+        error: 'Failed to refresh all matches',
         message: error instanceof Error ? error.message : 'Unknown error'
       },
       500

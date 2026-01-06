@@ -5,6 +5,7 @@ import { logger } from 'hono/logger';
 import { authMiddleware } from './middleware/auth.js';
 import matchesRoutes from './routes/matches.js';
 import matchRoutes from './routes/match.js';
+import analysisRoutes from './routes/analysis.js';
 const app = new Hono();
 // Middleware
 app.use('*', logger());
@@ -19,13 +20,15 @@ app.get('/', (c) => {
             matches: 'GET /api/matches',
             matchesRefresh: 'GET /api/matches/refresh',
             matchesAll: 'GET /api/matches/all',
-            matchDetails: 'GET /api/match/:id'
+            matchDetails: 'GET /api/match/:id',
+            analysisCache: 'GET/POST /api/analysis-cache/:matchId'
         }
     });
 });
 // Routes
 app.route('/api/matches', matchesRoutes);
 app.route('/api/match', matchRoutes);
+app.route('/api/analysis-cache', analysisRoutes);
 // 404 handler
 app.notFound((c) => {
     return c.json({
