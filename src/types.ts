@@ -63,14 +63,14 @@ export interface H2HMatch {
   score: string;
 }
 
-// Allowed leagues filter
+// Allowed leagues filter (partial match, case-insensitive)
 export const ALLOWED_LEAGUES = [
-  "england - premier league",
-  "england - championship",
+  "england",
   "spain",
   "germany",
   "italy",
-  "france"
+  "france",
+  "champions league"
 ];
 
 // Blocked youth/reserve competitions
