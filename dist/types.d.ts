@@ -55,3 +55,4 @@ export interface H2HMatch {
     score: string;
 }
 export declare const ALLOWED_LEAGUES: string[];
+export declare const BLOCKED_COMPETITIONS: string[];

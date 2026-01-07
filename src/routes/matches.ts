@@ -2,7 +2,28 @@ import { Hono } from 'hono';
 import pLimit from 'p-limit';
 import { getMatches } from '../scrapers/matches.js';
 import { getMatchDetails } from '../scrapers/details.js';
-import { ALLOWED_LEAGUES } from '../types.js';
+import { ALLOWED_LEAGUES, BLOCKED_COMPETITIONS } from '../types.js';
+import type { MatchSummary } from '../types.js';
+
+function filterMatches(matches: MatchSummary[]): { filtered: MatchSummary[]; blockedCount: number } {
+  // First: filter by allowed leagues
+  const allowedMatches = matches.filter((match) =>
+    ALLOWED_LEAGUES.some((league) =>
+      match.league.toLowerCase().includes(league.toLowerCase())
+    )
+  );
+
+  // Then: filter out blocked competitions
+  const filtered = allowedMatches.filter((match) => {
+    const leagueLower = match.league.toLowerCase();
+    return !BLOCKED_COMPETITIONS.some((blocked) => leagueLower.includes(blocked));
+  });
+
+  return {
+    filtered,
+    blockedCount: allowedMatches.length - filtered.length
+  };
+}
 import {
   getMatchListCache,
   setCache,
@@ -19,7 +40,11 @@ matches.get('/', async (c) => {
     const cached = getMatchListCache();
     if (cached) {
       console.log('Returning cached matches');
-      return c.json({ ...cached, fromCache: true });
+      const { filtered, blockedCount } = filterMatches(cached.matches);
+      if (blockedCount > 0) {
+        console.log(`Blocked ${blockedCount} youth/reserve matches`);
+      }
+      return c.json({ ...cached, matches: filtered, fromCache: true });
     }
 
     console.log('Fetching matches...');
@@ -28,7 +53,12 @@ matches.get('/', async (c) => {
 
     setCache(getCacheKey('matches'), result);
 
-    return c.json({ ...result, fromCache: false });
+    const { filtered, blockedCount } = filterMatches(result.matches);
+    if (blockedCount > 0) {
+      console.log(`Blocked ${blockedCount} youth/reserve matches`);
+    }
+
+    return c.json({ ...result, matches: filtered, fromCache: false });
   } catch (error) {
     console.error('Error fetching matches:', error);
     return c.json(
@@ -52,7 +82,12 @@ matches.get('/refresh', async (c) => {
 
     setCache(getCacheKey('matches'), result);
 
-    return c.json({ ...result, fromCache: false });
+    const { filtered, blockedCount } = filterMatches(result.matches);
+    if (blockedCount > 0) {
+      console.log(`Blocked ${blockedCount} youth/reserve matches`);
+    }
+
+    return c.json({ ...result, matches: filtered, fromCache: false });
   } catch (error) {
     console.error('Error refreshing matches:', error);
     return c.json(
@@ -77,12 +112,11 @@ matches.get('/refresh-all', async (c) => {
     const matchList = await getMatches();
     setCache(getCacheKey('matches'), matchList);
 
-    const filteredMatches = matchList.matches.filter((match) =>
-      ALLOWED_LEAGUES.some((league) =>
-        match.league.toLowerCase().includes(league.toLowerCase())
-      )
-    );
+    const { filtered: filteredMatches, blockedCount } = filterMatches(matchList.matches);
 
+    if (blockedCount > 0) {
+      console.log(`Blocked ${blockedCount} youth/reserve matches`);
+    }
     console.log(`Scraping ${filteredMatches.length} matches from allowed leagues...`);
 
     const errors: string[] = [];
@@ -136,12 +170,11 @@ matches.get('/all', async (c) => {
       setCache(getCacheKey('matches'), matchList);
     }
 
-    const filteredMatches = matchList.matches.filter((match) =>
-      ALLOWED_LEAGUES.some((league) =>
-        match.league.toLowerCase().includes(league.toLowerCase())
-      )
-    );
+    const { filtered: filteredMatches, blockedCount } = filterMatches(matchList.matches);
 
+    if (blockedCount > 0) {
+      console.log(`Blocked ${blockedCount} youth/reserve matches`);
+    }
     console.log(`Scraping ${filteredMatches.length} matches from allowed leagues...`);
 
     const errors: string[] = [];
