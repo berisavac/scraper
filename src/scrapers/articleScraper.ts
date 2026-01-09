@@ -26,8 +26,8 @@ export async function scrapeArticle(url: string): Promise<Article | null> {
     }
 
     return {
-      title: article.title,
-      content: article.textContent.slice(0, 3000),
+      title: article.title || '',
+      content: (article.textContent || '').slice(0, 3000),
       url: url
     };
   } catch (error) {
