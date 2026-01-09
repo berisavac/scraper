@@ -1,5 +1,5 @@
-import { searchLinks } from '../scrapers/webSearch';
-import { scrapeArticle } from '../scrapers/articleScraper';
+import { searchLinks } from '../scrapers/webSearch.js';
+import { scrapeArticle } from '../scrapers/articleScraper.js';
 
 export async function enrichMatch(homeTeam: string, awayTeam: string): Promise<string> {
   const query = `${homeTeam} vs ${awayTeam} preview team news injuries`;

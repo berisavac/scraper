@@ -1,4 +1,4 @@
-import { getPage } from '../browser-manager';
+import { getPage } from '../browser-manager.js';
 import { JSDOM } from 'jsdom';
 import { Readability } from '@mozilla/readability';
 

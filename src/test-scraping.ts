@@ -1,5 +1,5 @@
-import { searchLinks } from './scrapers/webSearch';
-import { closeBrowser } from './browser-manager';
+import { searchLinks } from './scrapers/webSearch.js';
+import { closeBrowser } from './browser-manager.js';
 
 async function testScraping() {
   console.log('=== Test: searchLinks ===\n');
