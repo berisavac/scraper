@@ -13,7 +13,8 @@ const ALLOWED_LEAGUES = [
   'spain',
   'germany',
   'italy',
-  'france'
+  'france',
+  'netherlands'
 ];
 
 async function delay(ms: number): Promise<void> {
