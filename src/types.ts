@@ -76,7 +76,9 @@ export const ALLOWED_LEAGUES = [
 // Blocked youth/reserve competitions
 export const BLOCKED_COMPETITIONS = [
   'primavera',
+  'serie b',
   'serie d',
+  'laliga2',
   'premier league cup',
   'premier league 2',
   'u18',
@@ -89,4 +91,9 @@ export const BLOCKED_COMPETITIONS = [
   'women',
   'amateur',
   'regional',
+  'group a',
+  'group b',
+  'group c',
+  'group 1',
+  'group 2',
 ];
