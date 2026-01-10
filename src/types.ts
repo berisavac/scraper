@@ -1,3 +1,11 @@
+// Re-export job types for convenience
+export type {
+  JobStatus,
+  JobProgress,
+  ScrapeAllResult,
+  Job
+} from './job-manager.js';
+
 // Match List Response
 export interface MatchListResponse {
   date: string; // "2026-01-05"
@@ -70,6 +78,7 @@ export const ALLOWED_LEAGUES = [
   "germany",
   "italy",
   "france",
+  "netherlands",
   "champions league"
 ];
 
@@ -96,4 +105,8 @@ export const BLOCKED_COMPETITIONS = [
   'group c',
   'group 1',
   'group 2',
+  'eerste divisie',
+  'tweede divisie',
+  'derde divisie',
+  'keuken kampioen',
 ];

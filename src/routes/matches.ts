@@ -4,6 +4,14 @@ import { getMatches } from '../scrapers/matches.js';
 import { getMatchDetails } from '../scrapers/details.js';
 import { ALLOWED_LEAGUES, BLOCKED_COMPETITIONS } from '../types.js';
 import type { MatchSummary } from '../types.js';
+import {
+  createJob,
+  getJob,
+  getAllJobs,
+  updateJobStatus,
+  updateJobProgress,
+  cleanupOldJobs
+} from '../job-manager.js';
 
 function filterMatches(matches: MatchSummary[]): { filtered: MatchSummary[]; blockedCount: number } {
   // First: filter by allowed leagues
@@ -140,6 +148,8 @@ matches.get('/refresh-all', async (c) => {
     await Promise.all(tasks);
 
     return c.json({
+      deprecated: true,
+      warning: 'This endpoint is deprecated. Use POST /api/matches/scrape-all instead.',
       matches: filteredMatches,
       totalScraped: filteredMatches.length - errors.length,
       leagues: Array.from(scrapedLeagues),
@@ -198,6 +208,8 @@ matches.get('/all', async (c) => {
     await Promise.all(tasks);
 
     return c.json({
+      deprecated: true,
+      warning: 'This endpoint is deprecated. Use POST /api/matches/scrape-all instead.',
       totalScraped: filteredMatches.length - errors.length,
       leagues: Array.from(scrapedLeagues),
       errors
@@ -212,6 +224,128 @@ matches.get('/all', async (c) => {
       500
     );
   }
+});
+
+// Background scraping function
+async function runScrapingJob(jobId: string, forceRefresh: boolean = false): Promise<void> {
+  const limit = pLimit(3);
+
+  try {
+    updateJobStatus(jobId, 'running');
+
+    // Get or fetch match list
+    let matchList = forceRefresh ? null : getMatchListCache();
+    if (!matchList) {
+      if (forceRefresh) {
+        clearAllMatchCache();
+        console.log(`[Job ${jobId}] Cleared all cache entries`);
+      }
+      console.log(`[Job ${jobId}] Fetching match list...`);
+      matchList = await getMatches();
+      setCache(getCacheKey('matches'), matchList);
+    }
+
+    const { filtered: filteredMatches, blockedCount } = filterMatches(matchList.matches);
+    if (blockedCount > 0) {
+      console.log(`[Job ${jobId}] Blocked ${blockedCount} youth/reserve matches`);
+    }
+
+    const total = filteredMatches.length;
+    console.log(`[Job ${jobId}] Scraping ${total} matches...`);
+    updateJobProgress(jobId, 0, total);
+
+    const errors: string[] = [];
+    const scrapedLeagues = new Set<string>();
+    let current = 0;
+
+    const tasks = filteredMatches.map((match) =>
+      limit(async () => {
+        try {
+          console.log(`[Job ${jobId}] Scraping match: ${match.id} (${match.league})`);
+          const details = await getMatchDetails(match.id);
+          setCache(getCacheKey('match', match.id), details);
+          scrapedLeagues.add(match.league);
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          errors.push(`${match.id}: ${errorMsg}`);
+          console.error(`[Job ${jobId}] Error scraping match ${match.id}:`, errorMsg);
+        } finally {
+          current++;
+          updateJobProgress(jobId, current, total);
+        }
+      })
+    );
+
+    await Promise.all(tasks);
+
+    updateJobStatus(jobId, 'completed', {
+      result: {
+        totalScraped: filteredMatches.length - errors.length,
+        leagues: Array.from(scrapedLeagues),
+        errors
+      }
+    });
+
+    console.log(`[Job ${jobId}] Completed: ${filteredMatches.length - errors.length}/${total} matches scraped`);
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`[Job ${jobId}] Failed:`, errorMsg);
+    updateJobStatus(jobId, 'failed', { error: errorMsg });
+  }
+}
+
+// POST /api/matches/scrape-all - Start background scraping job
+matches.post('/scrape-all', async (c) => {
+  // Clean up old jobs periodically
+  cleanupOldJobs();
+
+  const job = createJob();
+  console.log(`Starting scrape job: ${job.id}`);
+
+  // Fire-and-forget: start scraping in background
+  runScrapingJob(job.id, false).catch((err) => {
+    console.error(`Job ${job.id} failed unexpectedly:`, err);
+  });
+
+  return c.json({
+    jobId: job.id,
+    status: job.status
+  });
+});
+
+// GET /api/matches/jobs/:jobId - Get job status
+matches.get('/jobs/:jobId', async (c) => {
+  const jobId = c.req.param('jobId');
+  const job = getJob(jobId);
+
+  if (!job) {
+    return c.json({ error: 'Job not found' }, 404);
+  }
+
+  return c.json({
+    jobId: job.id,
+    status: job.status,
+    progress: job.progress,
+    result: job.result,
+    error: job.error,
+    startedAt: job.startedAt.toISOString(),
+    completedAt: job.completedAt?.toISOString()
+  });
+});
+
+// GET /api/matches/jobs - List all jobs
+matches.get('/jobs', async (c) => {
+  const jobs = getAllJobs();
+
+  return c.json({
+    jobs: jobs.map((job) => ({
+      jobId: job.id,
+      status: job.status,
+      progress: job.progress,
+      startedAt: job.startedAt.toISOString(),
+      completedAt: job.completedAt?.toISOString()
+    }))
+  });
 });
 
 export default matches;

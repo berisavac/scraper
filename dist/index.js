@@ -6,6 +6,7 @@ import { authMiddleware } from './middleware/auth.js';
 import matchesRoutes from './routes/matches.js';
 import matchRoutes from './routes/match.js';
 import analysisRoutes from './routes/analysis.js';
+import matchNewsRoutes from './routes/matchNews.js';
 const app = new Hono();
 // Middleware
 app.use('*', logger());
@@ -21,7 +22,8 @@ app.get('/', (c) => {
             matchesRefresh: 'GET /api/matches/refresh',
             matchesAll: 'GET /api/matches/all',
             matchDetails: 'GET /api/match/:id',
-            analysisCache: 'GET/POST /api/analysis-cache/:matchId'
+            analysisCache: 'GET/POST /api/analysis-cache/:matchId',
+            matchNews: 'GET /api/match-news?home=X&away=Y'
         }
     });
 });
@@ -29,6 +31,7 @@ app.get('/', (c) => {
 app.route('/api/matches', matchesRoutes);
 app.route('/api/match', matchRoutes);
 app.route('/api/analysis-cache', analysisRoutes);
+app.route('/api/match-news', matchNewsRoutes);
 // 404 handler
 app.notFound((c) => {
     return c.json({

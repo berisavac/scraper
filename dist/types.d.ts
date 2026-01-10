@@ -1,3 +1,4 @@
+export type { JobStatus, JobProgress, ScrapeAllResult, Job } from './job-manager.js';
 export interface MatchListResponse {
     date: string;
     matches: MatchSummary[];
