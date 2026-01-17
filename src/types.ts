@@ -71,19 +71,19 @@ export interface H2HMatch {
   score: string;
 }
 
-// Allowed leagues filter (partial match, case-insensitive)
+// Allowed leagues filter (exact match with country, case-insensitive)
 export const ALLOWED_LEAGUES = [
-  "premier league",      // England - Premier League
-  "championship",        // England - Championship
-  "ligue 1",            // France - Ligue 1
-  "serie a",            // Italy - Serie A
-  "bundesliga",         // Germany - Bundesliga
-  "laliga",             // Spain - LaLiga
-  "jupiler pro league", // Belgium - Jupiler Pro League
-  "eredivisie",         // Netherlands - Eredivisie
-  "super league",       // Switzerland/Turkey/Greece - Super League
-  "liga prvaka",        // Champions League (hrvatski naziv)
-  "champions league"    // Champions League (engleski naziv)
+  "england: premier league",
+  "england: championship",
+  "france: ligue 1",
+  "italy: serie a",
+  "germany: bundesliga",
+  "spain: laliga",
+  "belgium: jupiler pro league",
+  "netherlands: eredivisie",
+  "switzerland: super league",  // ONLY Switzerland, NOT Greece/Turkey
+  "liga prvaka",                // Champions League (hrvatski naziv)
+  "champions league"            // Champions League (engleski naziv)
 ];
 
 // BLOCKED_COMPETITIONS is the single source of truth for league exclusions
@@ -120,4 +120,10 @@ export const BLOCKED_COMPETITIONS = [
   'tweede divisie',
   'derde divisie',
   'keuken kampioen',
+  'nifl',                // Northern Ireland Football League
+  'first division',      // Generic minor leagues
+  'second division',
+  'third division',
+  'tt premier league',   // Trinidad and Tobago
+  'premier division',    // Generic name for minor leagues
 ];

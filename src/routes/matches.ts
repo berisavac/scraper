@@ -15,11 +15,18 @@ import {
 
 function filterMatches(matches: MatchSummary[]): { filtered: MatchSummary[]; blockedCount: number } {
   // First: filter by allowed leagues
-  const allowedMatches = matches.filter((match) =>
-    ALLOWED_LEAGUES.some((league) =>
-      match.league.toLowerCase().includes(league.toLowerCase())
-    )
-  );
+  const allowedMatches = matches.filter((match) => {
+    const leagueLower = match.league.toLowerCase();
+
+    return ALLOWED_LEAGUES.some((allowed) => {
+      // Champions League can be under different countries, use partial match
+      if (allowed === 'liga prvaka' || allowed === 'champions league') {
+        return leagueLower.includes(allowed);
+      }
+      // For all other leagues, require EXACT match with country
+      return leagueLower === allowed;
+    });
+  });
 
   // Then: filter out blocked competitions
   const filtered = allowedMatches.filter((match) => {

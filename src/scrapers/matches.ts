@@ -130,12 +130,16 @@ async function scrapeMatches(): Promise<MatchSummary[]> {
         // Match row
         if (el.classList.contains('event__match')) {
           // Check if league is allowed
-          const fullLeague = `${currentCountry} - ${currentLeague}`.toLowerCase();
-          const countryLower = currentCountry.toLowerCase();
+          const fullLeague = `${currentCountry}: ${currentLeague}`.toLowerCase();
 
-          const isAllowed = allowedLeagues.some(allowed =>
-            fullLeague.includes(allowed) || countryLower.includes(allowed)
-          );
+          const isAllowed = allowedLeagues.some(allowed => {
+            // Champions League can be under different countries, use partial match
+            if (allowed === 'liga prvaka' || allowed === 'champions league') {
+              return fullLeague.includes(allowed);
+            }
+            // For all other leagues, require EXACT match with country
+            return fullLeague === allowed;
+          });
 
           if (!isAllowed) return;
 
