@@ -2,3 +2,8 @@ node_modules/
 dist/
 .env
 DEPLOY.md
+
+# Database files
+local.db
+local.db-shm
+local.db-wal

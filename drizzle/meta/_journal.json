@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1768598108111,
+      "tag": "0000_cultured_bruce_banner",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1768601983937,
+      "tag": "0001_regular_christian_walker",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1768604078457,
+      "tag": "0002_premium_gorilla_man",
+      "breakpoints": true
+    }
+  ]
+}

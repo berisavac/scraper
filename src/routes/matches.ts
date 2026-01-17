@@ -24,7 +24,7 @@ function filterMatches(matches: MatchSummary[]): { filtered: MatchSummary[]; blo
   // Then: filter out blocked competitions
   const filtered = allowedMatches.filter((match) => {
     const leagueLower = match.league.toLowerCase();
-    return !BLOCKED_COMPETITIONS.some((blocked) => leagueLower.includes(blocked));
+    return !BLOCKED_COMPETITIONS.some((blocked) => leagueLower.includes(blocked.toLowerCase()));
   });
 
   return {

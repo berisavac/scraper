@@ -73,21 +73,30 @@ export interface H2HMatch {
 
 // Allowed leagues filter (partial match, case-insensitive)
 export const ALLOWED_LEAGUES = [
-  "england",
-  "spain",
-  "germany",
-  "italy",
-  "france",
-  "netherlands",
-  "champions league"
+  "premier league",      // England - Premier League
+  "championship",        // England - Championship
+  "ligue 1",            // France - Ligue 1
+  "serie a",            // Italy - Serie A
+  "bundesliga",         // Germany - Bundesliga
+  "laliga",             // Spain - LaLiga
+  "jupiler pro league", // Belgium - Jupiler Pro League
+  "eredivisie",         // Netherlands - Eredivisie
+  "super league",       // Switzerland/Turkey/Greece - Super League
+  "liga prvaka",        // Champions League (hrvatski naziv)
+  "champions league"    // Champions League (engleski naziv)
 ];
 
-// Blocked youth/reserve competitions
+// BLOCKED_COMPETITIONS is the single source of truth for league exclusions
+// All entries should be lowercase for consistent matching
+// These are applied AFTER ALLOWED_LEAGUES filtering to catch unwanted variations
 export const BLOCKED_COMPETITIONS = [
   'primavera',
   'serie b',
   'serie d',
   'laliga2',
+  'ligue 2',
+  '2. bundesliga',
+  '3. liga',             // Germany - 3. Liga (3rd division)
   'premier league cup',
   'premier league 2',
   'u18',
@@ -98,6 +107,8 @@ export const BLOCKED_COMPETITIONS = [
   'reserve',
   'reserves',
   'women',
+  'women\'s super league',
+  'super league 2',
   'amateur',
   'regional',
   'group a',

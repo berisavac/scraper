@@ -1,21 +1,9 @@
 import { chromium, Browser, Page } from 'playwright';
-import { MatchSummary, MatchListResponse } from '../types.js';
+import { MatchSummary, MatchListResponse, ALLOWED_LEAGUES } from '../types.js';
 
 const FLASHSCORE_URL = 'https://www.flashscore.com/';
 const TIMEOUT = 30000;
 const MAX_RETRIES = 2;
-
-// Updated allowed leagues
-const ALLOWED_LEAGUES = [
-  'australia',
-  'england - premier league',
-  'england - championship',
-  'spain',
-  'germany',
-  'italy',
-  'france',
-  'netherlands'
-];
 
 async function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
