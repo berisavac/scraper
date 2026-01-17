@@ -18,3 +18,20 @@ export function setAnalysisCache(
     steps
   });
 }
+
+export function deleteAnalysisCache(matchId: string): boolean {
+  return analysisCache.delete(matchId);
+}
+
+export function clearAllAnalysisCache(): number {
+  const count = analysisCache.size;
+  analysisCache.clear();
+  return count;
+}
+
+export function getAnalysisCacheStats(): { totalCached: number; matchIds: string[] } {
+  return {
+    totalCached: analysisCache.size,
+    matchIds: Array.from(analysisCache.keys())
+  };
+}

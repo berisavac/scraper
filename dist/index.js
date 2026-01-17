@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -7,10 +8,19 @@ import matchesRoutes from './routes/matches.js';
 import matchRoutes from './routes/match.js';
 import analysisRoutes from './routes/analysis.js';
 import matchNewsRoutes from './routes/matchNews.js';
+import authRoutes from './routes/auth.js';
+import inviteRoutes from './routes/invites.js';
+import ticketsRoutes from './routes/tickets.js';
 const app = new Hono();
 // Middleware
 app.use('*', logger());
-app.use('*', cors());
+app.use('*', cors({
+    origin: '*',
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
+    exposeHeaders: ['Content-Length'],
+    credentials: true,
+}));
 app.use('*', authMiddleware);
 // Health check
 app.get('/', (c) => {
@@ -23,7 +33,18 @@ app.get('/', (c) => {
             matchesAll: 'GET /api/matches/all',
             matchDetails: 'GET /api/match/:id',
             analysisCache: 'GET/POST /api/analysis-cache/:matchId',
-            matchNews: 'GET /api/match-news?home=X&away=Y'
+            matchNews: 'GET /api/match-news?home=X&away=Y',
+            authRegister: 'POST /api/auth/register',
+            authLogin: 'POST /api/auth/login',
+            authMe: 'GET /api/auth/me (JWT protected)',
+            invitesGenerate: 'POST /api/invites (JWT + Admin)',
+            invitesMine: 'GET /api/invites/mine (JWT)',
+            invitesValidate: 'GET /api/invites/validate/:code (public)',
+            ticketsCreate: 'POST /api/tickets (JWT)',
+            ticketsList: 'GET /api/tickets?period=today|week|month|all (JWT)',
+            ticketDetails: 'GET /api/tickets/:id (JWT)',
+            ticketUpdate: 'PATCH /api/tickets/:id (JWT)',
+            ticketDelete: 'DELETE /api/tickets/:id (JWT)'
         }
     });
 });
@@ -32,6 +53,9 @@ app.route('/api/matches', matchesRoutes);
 app.route('/api/match', matchRoutes);
 app.route('/api/analysis-cache', analysisRoutes);
 app.route('/api/match-news', matchNewsRoutes);
+app.route('/api/auth', authRoutes);
+app.route('/api/invites', inviteRoutes);
+app.route('/api/tickets', ticketsRoutes);
 // 404 handler
 app.notFound((c) => {
     return c.json({

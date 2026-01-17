@@ -19,7 +19,7 @@ app.use('*', logger());
 app.use('*', cors({
   origin: '*',
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization'],
+  allowHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
   exposeHeaders: ['Content-Length'],
   credentials: true,
 }));

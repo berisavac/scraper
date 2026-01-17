@@ -1,17 +1,8 @@
 import { chromium } from 'playwright';
+import { ALLOWED_LEAGUES } from '../types.js';
 const FLASHSCORE_URL = 'https://www.flashscore.com/';
 const TIMEOUT = 30000;
 const MAX_RETRIES = 2;
-// Updated allowed leagues
-const ALLOWED_LEAGUES = [
-    'australia',
-    'england - premier league',
-    'england - championship',
-    'spain',
-    'germany',
-    'italy',
-    'france'
-];
 async function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -113,9 +104,15 @@ async function scrapeMatches() {
                 // Match row
                 if (el.classList.contains('event__match')) {
                     // Check if league is allowed
-                    const fullLeague = `${currentCountry} - ${currentLeague}`.toLowerCase();
-                    const countryLower = currentCountry.toLowerCase();
-                    const isAllowed = allowedLeagues.some(allowed => fullLeague.includes(allowed) || countryLower.includes(allowed));
+                    const fullLeague = `${currentCountry}: ${currentLeague}`.toLowerCase();
+                    const isAllowed = allowedLeagues.some(allowed => {
+                        // Champions League can be under different countries, use partial match
+                        if (allowed === 'liga prvaka' || allowed === 'champions league') {
+                            return fullLeague.includes(allowed);
+                        }
+                        // For all other leagues, require EXACT match with country
+                        return fullLeague === allowed;
+                    });
                     if (!isAllowed)
                         return;
                     // Get match link and ID

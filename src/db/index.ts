@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import * as schema from './schema.js';
 
 // Create SQLite database instance
-export const sqlite: InstanceType<typeof Database> = new Database('./local.db');
+export const sqlite: InstanceType<typeof Database> = new Database('./data/local.db');
 
 // Enable critical SQLite pragmas
 sqlite.pragma('foreign_keys = ON'); // Foreign keys disabled by default in SQLite!
