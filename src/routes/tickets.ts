@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { db, sqlite } from '../db/index.js';
 import { tickets, ticketBets } from '../db/schema.js';
-import { eq, and, gte, sql, desc } from 'drizzle-orm';
+import { eq, and, gte, sql, desc, inArray } from 'drizzle-orm';
 import { jwtAuth } from '../middleware/jwtAuth.js';
 
 const ticketsRouter = new Hono();
@@ -17,6 +17,7 @@ ticketsRouter.post('/', async (c) => {
 
     // Validation
     const { stake, totalOdds, bets } = body;
+
 
     if (!stake || !totalOdds || !bets) {
       return c.json({
@@ -78,21 +79,28 @@ ticketsRouter.post('/', async (c) => {
         .returning()
         .all();
 
-      const insertedBets = db
-        .insert(ticketBets)
-        .values(bets.map(bet => ({
-          ticketId: newTicket.id,
-          matchId: bet.matchId,
-          homeTeam: bet.homeTeam,
-          awayTeam: bet.awayTeam,
-          betType: bet.betType,
-          odds: bet.odds
-        })))
-        .returning()
-        .all();
+      // Insert bets one by one to avoid Drizzle bulk insert issues
+      const insertedBets = [];
+      for (const bet of bets) {
+        const [inserted] = db
+          .insert(ticketBets)
+          .values({
+            ticketId: newTicket.id,
+            matchId: bet.matchId,
+            homeTeam: bet.homeTeam,
+            awayTeam: bet.awayTeam,
+            betType: bet.betType,
+            odds: bet.odds
+          })
+          .returning()
+          .all();
+        insertedBets.push(inserted);
+      }
 
       return { ticket: newTicket, bets: insertedBets };
     })();
+
+
 
     return c.json(result, 201);
   } catch (error) {
@@ -143,7 +151,7 @@ ticketsRouter.get('/', async (c) => {
     }
 
     // Query tickets with betsCount subquery
-    const userTickets = await db
+    const userTickets = db
       .select({
         id: tickets.id,
         totalOdds: tickets.totalOdds,
@@ -158,7 +166,37 @@ ticketsRouter.get('/', async (c) => {
       })
       .from(tickets)
       .where(and(...whereConditions))
-      .orderBy(desc(tickets.createdAt));
+      .orderBy(desc(tickets.createdAt))
+      .all();
+
+    // If there are tickets, fetch all bets for them
+    if (userTickets.length > 0) {
+      const ticketIds = userTickets.map(t => t.id);
+
+      // Fetch all bet details for these tickets
+      const betsResult = db
+        .select()
+        .from(ticketBets)
+        .where(inArray(ticketBets.ticketId, ticketIds))
+        .all();
+
+      // Group bets by ticketId
+      const betsByTicket: Record<number, typeof betsResult> = {};
+      for (const bet of betsResult) {
+        if (!betsByTicket[bet.ticketId]) {
+          betsByTicket[bet.ticketId] = [];
+        }
+        betsByTicket[bet.ticketId].push(bet);
+      }
+
+      // Merge full bet data into tickets
+      const ticketsWithBets = userTickets.map(ticket => ({
+        ...ticket,
+        bets: betsByTicket[ticket.id] || [],
+      }));
+
+      return c.json({ tickets: ticketsWithBets });
+    }
 
     return c.json({ tickets: userTickets });
   } catch (error) {
@@ -183,11 +221,12 @@ ticketsRouter.get('/:id', async (c) => {
     }
 
     // Fetch ticket
-    const [ticket] = await db
+    const [ticket] = db
       .select()
       .from(tickets)
       .where(eq(tickets.id, ticketId))
-      .limit(1);
+      .limit(1)
+      .all();
 
     if (!ticket) {
       return c.json({ error: 'Ticket not found' }, 404);
@@ -199,10 +238,11 @@ ticketsRouter.get('/:id', async (c) => {
     }
 
     // Fetch associated bets
-    const bets = await db
+    const bets = db
       .select()
       .from(ticketBets)
-      .where(eq(ticketBets.ticketId, ticketId));
+      .where(eq(ticketBets.ticketId, ticketId))
+      .all();
 
     return c.json({ ticket, bets });
   } catch (error) {
@@ -238,11 +278,12 @@ ticketsRouter.patch('/:id', async (c) => {
     }
 
     // Fetch ticket for ownership check
-    const [ticket] = await db
+    const [ticket] = db
       .select()
       .from(tickets)
       .where(eq(tickets.id, ticketId))
-      .limit(1);
+      .limit(1)
+      .all();
 
     if (!ticket) {
       return c.json({ error: 'Ticket not found' }, 404);
@@ -254,11 +295,12 @@ ticketsRouter.patch('/:id', async (c) => {
     }
 
     // Update ticket status
-    const [updatedTicket] = await db
+    const [updatedTicket] = db
       .update(tickets)
       .set({ status })
       .where(eq(tickets.id, ticketId))
-      .returning();
+      .returning()
+      .all();
 
     return c.json({ ticket: updatedTicket });
   } catch (error) {
@@ -283,11 +325,12 @@ ticketsRouter.delete('/:id', async (c) => {
     }
 
     // Fetch ticket for ownership check
-    const [ticket] = await db
+    const [ticket] = db
       .select()
       .from(tickets)
       .where(eq(tickets.id, ticketId))
-      .limit(1);
+      .limit(1)
+      .all();
 
     if (!ticket) {
       return c.json({ error: 'Ticket not found' }, 404);
@@ -299,9 +342,9 @@ ticketsRouter.delete('/:id', async (c) => {
     }
 
     // Delete ticket (CASCADE will auto-delete ticketBets)
-    await db
-      .delete(tickets)
-      .where(eq(tickets.id, ticketId));
+    db.delete(tickets)
+      .where(eq(tickets.id, ticketId))
+      .run();
 
     return c.json({ success: true });
   } catch (error) {

@@ -76,7 +76,7 @@ invites.get('/mine', jwtAuth, async (c) => {
       .$dynamic();
 
     const results = await query;
-
+    
     // Filter results based on status
     let filteredResults = results;
     if (status === 'unused') {
