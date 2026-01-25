@@ -127,3 +127,35 @@ export const BLOCKED_COMPETITIONS = [
   'tt premier league',   // Trinidad and Tobago
   'premier division',    // Generic name for minor leagues
 ];
+
+// Mozzart Odds Types
+export interface MozzartOdds {
+  home: string;           // 1
+  draw: string;           // X
+  away: string;           // 2
+  homeOrDraw: string;     // 1X
+  homeOrAway: string;     // 12
+  drawOrAway: string;     // X2
+  over2_5: string;        // 2+ (over 2.5 goals)
+  under2_5: string;       // 0-2 (under 2.5 goals)
+  over3_5: string;        // 3+ (over 3.5 goals)
+  gg?: string;            // GG (both teams to score)
+  ng?: string;            // NG (no - not both teams to score)
+}
+
+export interface MozzartMatch {
+  homeTeam: string;
+  awayTeam: string;
+  time: string;
+  odds: MozzartOdds;
+}
+
+export interface MatchedOdds {
+  matchId: string;
+  flashscoreHome: string;
+  flashscoreAway: string;
+  mozzartHome: string;
+  mozzartAway: string;
+  odds: MozzartOdds;
+  scrapedAt: string;
+}

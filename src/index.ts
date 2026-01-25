@@ -11,6 +11,7 @@ import matchNewsRoutes from './routes/matchNews.js';
 import authRoutes from './routes/auth.js';
 import inviteRoutes from './routes/invites.js';
 import ticketsRoutes from './routes/tickets.js';
+import oddsRoutes from './routes/odds.js';
 
 const app = new Hono();
 
@@ -47,7 +48,11 @@ app.get('/', (c) => {
       ticketsList: 'GET /api/tickets?period=today|week|month|all (JWT)',
       ticketDetails: 'GET /api/tickets/:id (JWT)',
       ticketUpdate: 'PATCH /api/tickets/:id (JWT)',
-      ticketDelete: 'DELETE /api/tickets/:id (JWT)'
+      ticketDelete: 'DELETE /api/tickets/:id (JWT)',
+      oddsScrape: 'POST /api/scraper/odds (scrape Mozzart + match with Flashscore)',
+      oddsAll: 'GET /api/odds (all cached odds)',
+      oddsById: 'GET /api/odds/:matchId (odds for specific match)',
+      oddsClear: 'DELETE /api/odds/clear (clear odds cache)'
     }
   });
 });
@@ -60,6 +65,8 @@ app.route('/api/match-news', matchNewsRoutes);
 app.route('/api/auth', authRoutes);
 app.route('/api/invites', inviteRoutes);
 app.route('/api/tickets', ticketsRoutes);
+app.route('/api/odds', oddsRoutes);
+app.route('/api', oddsRoutes);
 
 // 404 handler
 app.notFound((c) => {
