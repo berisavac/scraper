@@ -106,11 +106,11 @@ async function scrapeMozzartOdds(): Promise<MozzartMatch[]> {
 
     console.log('[Mozzart] Navigating to:', MOZZART_URL);
     await page.goto(MOZZART_URL, {
-      waitUntil: 'networkidle',
+      waitUntil: 'domcontentloaded',
       timeout: TIMEOUT
     });
 
-    await delay(3000);
+    await delay(5000);
 
     // Handle popups and cookies
     await closePopup(page);
@@ -199,15 +199,13 @@ async function scrapeMozzartOdds(): Promise<MozzartMatch[]> {
 
     // Try to scrape GG/NG odds
     console.log('[Mozzart] Attempting to scrape GG/NG odds...');
-    let ggNgOdds: Map<string, { gg: string; ng: string }> = new Map();
+    let ggNgOdds: Map<string, { gg: string; ng: string; gg3?: string; gg4?: string }> = new Map();
 
     try {
       // Look for the "Oba tima daju gol" tab and click it
       const ggTabSelectors = [
-        'button:has-text("Oba tima daju gol")',
-        '[data-tab*="gg"]',
-        'button:has-text("GG/NG")',
-        'button:has-text("BTTS")',
+        'span.grouped-game:has-text("Oba tima daju gol")',
+        'li span.grouped-game >> text="Oba tima daju gol"',
       ];
 
       let ggTabClicked = false;
@@ -227,6 +225,41 @@ async function scrapeMozzartOdds(): Promise<MozzartMatch[]> {
       }
 
       if (ggTabClicked) {
+        // Aggressive scroll to load ALL matches
+        console.log('[Mozzart] Scrolling to load all GG/NG matches...');
+
+        let previousCount = 0;
+        let sameCountIterations = 0;
+
+        for (let i = 0; i < 20; i++) {
+          // Scroll to bottom
+          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+          await delay(800);
+
+          // Check how many matches are loaded
+          const currentCount = await page.evaluate(() =>
+            document.querySelectorAll('.betting-match-as-is').length
+          );
+
+          console.log(`[Mozzart] Scroll ${i + 1}: ${currentCount} matches loaded`);
+
+          if (currentCount === previousCount) {
+            sameCountIterations++;
+            if (sameCountIterations >= 3) {
+              console.log('[Mozzart] No more matches loading, stopping scroll');
+              break;
+            }
+          } else {
+            sameCountIterations = 0;
+          }
+
+          previousCount = currentCount;
+        }
+
+        // Scroll back to top
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await delay(500);
+
         // Scrape GG/NG odds
         const ggMatches = await page.evaluate(() => {
           const results: Array<{
@@ -234,6 +267,8 @@ async function scrapeMozzartOdds(): Promise<MozzartMatch[]> {
             awayTeam: string;
             gg: string;
             ng: string;
+            gg3: string;
+            gg4: string;
           }> = [];
 
           const matchContainers = document.querySelectorAll('.betting-match-as-is');
@@ -248,12 +283,14 @@ async function scrapeMozzartOdds(): Promise<MozzartMatch[]> {
 
               if (!homeTeam || !awayTeam) return;
 
-              // GG/NG odds are typically first two values in this tab
+              // GG/NG odds: GG, NG, GG3+, GG4+
               const oddsElements = container.querySelectorAll('.odds-holder .font-cond');
               const gg = oddsElements[0]?.textContent?.trim() || '-';
               const ng = oddsElements[1]?.textContent?.trim() || '-';
+              const gg3 = oddsElements[2]?.textContent?.trim() || '-';
+              const gg4 = oddsElements[3]?.textContent?.trim() || '-';
 
-              results.push({ homeTeam, awayTeam, gg, ng });
+              results.push({ homeTeam, awayTeam, gg, ng, gg3, gg4 });
             } catch {
               // Skip this match
             }
@@ -262,10 +299,17 @@ async function scrapeMozzartOdds(): Promise<MozzartMatch[]> {
           return results;
         });
 
-        // Build a map for quick lookup
+        // Normalize function for fuzzy matching between tabs
+        const normalize = (name: string): string =>
+          name.toLowerCase()
+            .replace(/\s+/g, ' ')
+            .replace(/fc |afc |sc |fk |nk |rsc |kv |kvc |kaa |krc /gi, '')
+            .trim();
+
+        // Build a map for quick lookup with normalized keys
         ggMatches.forEach((m) => {
-          const key = `${m.homeTeam}|${m.awayTeam}`;
-          ggNgOdds.set(key, { gg: m.gg, ng: m.ng });
+          const key = `${normalize(m.homeTeam)}|${normalize(m.awayTeam)}`;
+          ggNgOdds.set(key, { gg: m.gg, ng: m.ng, gg3: m.gg3, gg4: m.gg4 });
         });
 
         console.log(`[Mozzart] Found GG/NG odds for ${ggNgOdds.size} matches`);
@@ -276,9 +320,15 @@ async function scrapeMozzartOdds(): Promise<MozzartMatch[]> {
       console.log('[Mozzart] Could not scrape GG/NG odds:', e);
     }
 
-    // Merge GG/NG odds with main odds
+    // Merge GG/NG odds with main odds using normalized matching
+    const normalize = (name: string): string =>
+      name.toLowerCase()
+        .replace(/\s+/g, ' ')
+        .replace(/fc |afc |sc |fk |nk |rsc |kv |kvc |kaa |krc /gi, '')
+        .trim();
+
     const finalMatches: MozzartMatch[] = matches.map((m) => {
-      const key = `${m.homeTeam}|${m.awayTeam}`;
+      const key = `${normalize(m.homeTeam)}|${normalize(m.awayTeam)}`;
       const ggNg = ggNgOdds.get(key);
 
       return {
@@ -288,7 +338,9 @@ async function scrapeMozzartOdds(): Promise<MozzartMatch[]> {
         odds: {
           ...m.odds,
           gg: ggNg?.gg,
-          ng: ggNg?.ng
+          ng: ggNg?.ng,
+          gg3: ggNg?.gg3,
+          gg4: ggNg?.gg4
         }
       };
     });

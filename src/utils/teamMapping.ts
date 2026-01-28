@@ -183,7 +183,7 @@ export const TEAM_ALIASES: Record<string, string[]> = {
   'Zurich': ['Cirih', 'Zurich', 'FC Zurich', 'Zürich'],
   'Servette': ['Servet', 'Servette', 'Servette FC'],
   'Lugano': ['Lugano', 'FC Lugano'],
-  'St. Gallen': ['Sankt Galen', 'St. Gallen', 'FC St. Gallen'],
+  'St. Gallen': ['Sankt Galen', 'St. Gallen', 'FC St. Gallen', 'St.Galen'],
   'Lausanne': ['Lozana', 'Lausanne', 'Lausanne Sport'],
   'Luzern': ['Lucern', 'Luzern', 'FC Luzern'],
   'Sion': ['Sion', 'FC Sion'],

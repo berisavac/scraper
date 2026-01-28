@@ -68,6 +68,7 @@ app.route('/api/tickets', ticketsRoutes);
 app.route('/api/odds', oddsRoutes);
 app.route('/api', oddsRoutes);
 
+
 // 404 handler
 app.notFound((c) => {
   return c.json(

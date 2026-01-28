@@ -126,6 +126,7 @@ export const BLOCKED_COMPETITIONS = [
   'third division',
   'tt premier league',   // Trinidad and Tobago
   'premier division',    // Generic name for minor leagues
+  'caf champions league', // Africa - CAF Champions League
 ];
 
 // Mozzart Odds Types
@@ -140,7 +141,9 @@ export interface MozzartOdds {
   under2_5: string;       // 0-2 (under 2.5 goals)
   over3_5: string;        // 3+ (over 3.5 goals)
   gg?: string;            // GG (both teams to score)
-  ng?: string;            // NG (no - not both teams to score)
+  ng?: string;            // NG (not both teams to score)
+  gg3?: string;           // GG3+ (both teams score + 3+ total goals)
+  gg4?: string;           // GG4+ (both teams score + 4+ total goals)
 }
 
 export interface MozzartMatch {

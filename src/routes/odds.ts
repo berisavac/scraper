@@ -12,6 +12,14 @@ import type { MatchedOdds, MozzartMatch } from '../types.js';
 
 const odds = new Hono();
 
+// odds.get('/test-scrape', async (c) => {
+//   const { getMozzartOdds } = await import('../scrapers/odds.js');
+//   const odds = await getMozzartOdds();
+//   return c.json({ total: odds.length, odds });
+// });
+
+
+
 // POST /scraper/odds - Scrape Mozzart odds and match with Flashscore cache
 odds.post('/scraper/odds', async (c) => {
   try {
@@ -138,6 +146,8 @@ odds.get('/:matchId', async (c) => {
         message: `No odds found for match ID: ${matchId}`
       }, 404);
     }
+
+    console.log('matchOdds', matchOdds);
 
     return c.json({
       success: true,
