@@ -3,8 +3,9 @@ FROM mcr.microsoft.com/playwright:v1.57.0-jammy
 WORKDIR /app
 
 # Install timezone data
-RUN DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install -y tzdata && rm -rf /var/lib/apt/lists/*
+ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Europe/Belgrade
+RUN apt-get update && apt-get install -y tzdata && rm -rf /var/lib/apt/lists/*
 
 # Copy package files
 COPY package*.json ./
