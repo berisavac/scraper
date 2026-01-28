@@ -1,5 +1,4 @@
 version: '3.8'
-
 services:
   scraper:
     environment:
@@ -12,4 +11,6 @@ services:
       - .env
     volumes:
       - ./data:/app/data
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     restart: unless-stopped
