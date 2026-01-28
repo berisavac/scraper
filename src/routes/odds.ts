@@ -68,17 +68,6 @@ odds.post('/scraper/odds', async (c) => {
           };
 
           matched.push(matchedOdds);
-
-          // Store in cache
-          setOddsCache(fsMatch.id, {
-            flashscoreHome: fsMatch.homeTeam.name,
-            flashscoreAway: fsMatch.awayTeam.name,
-            mozzartHome: mozzMatch.homeTeam,
-            mozzartAway: mozzMatch.awayTeam,
-            odds: mozzMatch.odds,
-            scrapedAt
-          });
-
           foundMatch = true;
           break;
         }
@@ -99,6 +88,43 @@ odds.post('/scraper/odds', async (c) => {
 
     console.log(`[Odds] Matching complete: ${matched.length} matched, ${unmatched.length} unmatched`);
 
+    // Sync to remote or store locally
+    const remoteApiUrl = process.env.REMOTE_API_URL;
+
+    if (remoteApiUrl && matched.length > 0) {
+      // Send to remote VPS
+      try {
+        const response = await fetch(`${remoteApiUrl}/api/import-odds`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': process.env.API_KEY || ''
+          },
+          body: JSON.stringify(matched)
+        });
+
+        if (!response.ok) {
+          console.error(`[Odds] Failed to sync to remote: ${response.status}`);
+        } else {
+          console.log(`[Odds] Synced ${matched.length} odds to remote`);
+        }
+      } catch (syncError) {
+        console.error('[Odds] Error syncing to remote:', syncError);
+      }
+    } else {
+      // Local storage (when not using remote sync)
+      for (const matchedOdds of matched) {
+        setOddsCache(matchedOdds.matchId, {
+          flashscoreHome: matchedOdds.flashscoreHome,
+          flashscoreAway: matchedOdds.flashscoreAway,
+          mozzartHome: matchedOdds.mozzartHome,
+          mozzartAway: matchedOdds.mozzartAway,
+          odds: matchedOdds.odds,
+          scrapedAt: matchedOdds.scrapedAt
+        });
+      }
+    }
+
     return c.json({
       success: true,
       matched,
@@ -111,6 +137,43 @@ odds.post('/scraper/odds', async (c) => {
     console.error('[Odds] Error scraping odds:', error);
     return c.json({
       error: 'Failed to scrape odds',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    }, 500);
+  }
+});
+
+// POST /import-odds - Import odds from remote scraper (used by VPS)
+odds.post('/import-odds', async (c) => {
+  try {
+    const oddsArray: MatchedOdds[] = await c.req.json();
+
+    // Validacija: mora biti array
+    if (!Array.isArray(oddsArray)) {
+      return c.json({ error: 'Expected array of MatchedOdds' }, 400);
+    }
+
+    // Upis svakog entry-ja u cache
+    for (const item of oddsArray) {
+      setOddsCache(item.matchId, {
+        flashscoreHome: item.flashscoreHome,
+        flashscoreAway: item.flashscoreAway,
+        mozzartHome: item.mozzartHome,
+        mozzartAway: item.mozzartAway,
+        odds: item.odds,
+        scrapedAt: item.scrapedAt
+      });
+    }
+
+    console.log(`[Odds] Imported ${oddsArray.length} odds from remote`);
+
+    return c.json({
+      success: true,
+      imported: oddsArray.length
+    });
+  } catch (error) {
+    console.error('[Odds] Error importing odds:', error);
+    return c.json({
+      error: 'Failed to import odds',
       message: error instanceof Error ? error.message : 'Unknown error'
     }, 500);
   }
