@@ -7,3 +7,4 @@ DEPLOY.md
 local.db
 local.db-shm
 local.db-wal
+data/
