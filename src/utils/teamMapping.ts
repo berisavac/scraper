@@ -55,7 +55,7 @@ export const TEAM_ALIASES: Record<string, string[]> = {
   'West Brom': ['Vest Bromvič', 'West Brom', 'West Bromwich Albion', 'WBA'],
 
   // Germany - Bundesliga
-  'Bayern Munich': ['Bajern', 'Bayern', 'Bayern Minhen', 'Bayern München', 'FC Bayern'],
+  'Bayern Munich': ['Bajern', 'Bayern', 'Bayern Minhen', 'Bayern München', 'FC Bayern', 'Bayern Munchen'],
   'Dortmund': ['Dortmund', 'Borussia Dortmund', 'BVB'],
   'RB Leipzig': ['Lajpcig', 'Leipzig', 'RB Leipzig', 'RasenBallsport Leipzig'],
   'Leverkusen': ['Leverkuzen', 'Bayer Leverkusen', 'B. Leverkusen'],
@@ -82,7 +82,7 @@ export const TEAM_ALIASES: Record<string, string[]> = {
   'Real Sociedad': ['Real Sosijedad', 'Real Sociedad', 'R. Sociedad'],
   'Real Betis': ['Real Betis', 'Betis', 'R. Betis'],
   'Villarreal': ['Viljareal', 'Villarreal', 'Villarreal CF'],
-  'Athletic Bilbao': ['Atletik Bilbao', 'Athletic', 'Athletic Club', 'Bilbao'],
+  'Athletic Bilbao': ['Atletik Bilbao', 'Athletic', 'Athletic Club', 'Bilbao', 'Ath Bilbao', 'Ath. Bilbao'],
   'Valencia': ['Valensija', 'Valencia', 'Valencia CF'],
   'Osasuna': ['Osasuna', 'CA Osasuna'],
   'Celta Vigo': ['Selta Vigo', 'Celta', 'Celta Vigo', 'RC Celta'],
@@ -146,7 +146,7 @@ export const TEAM_ALIASES: Record<string, string[]> = {
   'Gent': ['Gent', 'KAA Gent'],
   'Antwerp': ['Antverp', 'Antwerp', 'Royal Antwerp'],
   'Standard Liege': ['Standard Liež', 'Standard Liege', 'Standard'],
-  'Union SG': ['Union SG', 'Union Saint-Gilloise', 'Union St. Gilloise'],
+  'Union SG': ['Union SG', 'Union Saint-Gilloise', 'Union St. Gilloise', 'Royale Union SG', 'Saint Gilloise', 'Rle Union SG'],
   'Cercle Brugge': ['Serkl Briž', 'Cercle Brugge', 'Cercle Bruges'],
   'Mechelen': ['Mehelen', 'Mechelen', 'KV Mechelen'],
   'Charleroi': ['Šarlroa', 'Charleroi', 'Sporting Charleroi'],
@@ -190,6 +190,12 @@ export const TEAM_ALIASES: Record<string, string[]> = {
   'Grasshoppers': ['Grashopersi', 'Grasshoppers', 'Grasshopper Club'],
   'Winterthur': ['Vintertir', 'Winterthur', 'FC Winterthur'],
   'Yverdon': ['Iverdon', 'Yverdon', 'Yverdon Sport'],
+
+  // European teams (Champions League / Europa League)
+  'Olympiacos': ['Olympiacos', 'Olympiacos Piraeus', 'Olympiakos', 'Olympiakos Piraeus', 'Olympiakos Piräus'],
+  'Sporting CP': ['Sporting CP', 'Sporting', 'Sporting Lisbon', 'Sporting Lisboa'],
+  'Slavia Prague': ['Slavia Prague', 'Slavia Praha', 'Slavia Prag', 'SK Slavia Praha'],
+  'Pafos': ['Pafos', 'Paphos', 'Pafos FC', 'Paphos FC'],
 };
 
 // Build reverse lookup map
