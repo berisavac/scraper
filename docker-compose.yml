@@ -2,6 +2,8 @@ version: '3.8'
 
 services:
   scraper:
+    environment:
+      - TZ=Europe/Belgrade
     build: .
     container_name: scraper
     ports:
