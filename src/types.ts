@@ -83,7 +83,9 @@ export const ALLOWED_LEAGUES = [
   "netherlands: eredivisie",
   "switzerland: super league",  // ONLY Switzerland, NOT Greece/Turkey
   "liga prvaka",                // Champions League (hrvatski naziv)
-  "champions league"            // Champions League (engleski naziv)
+  "champions league",           // Champions League (engleski naziv)
+  "europa league",               // Europa League
+  "europe: europa league - league phase", // Europa League - League Phase
 ];
 
 // BLOCKED_COMPETITIONS is the single source of truth for league exclusions

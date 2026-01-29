@@ -57,3 +57,33 @@ export interface H2HMatch {
 }
 export declare const ALLOWED_LEAGUES: string[];
 export declare const BLOCKED_COMPETITIONS: string[];
+export interface MozzartOdds {
+    home: string;
+    draw: string;
+    away: string;
+    homeOrDraw: string;
+    homeOrAway: string;
+    drawOrAway: string;
+    over2_5: string;
+    under2_5: string;
+    over3_5: string;
+    gg?: string;
+    ng?: string;
+    gg3?: string;
+    gg4?: string;
+}
+export interface MozzartMatch {
+    homeTeam: string;
+    awayTeam: string;
+    time: string;
+    odds: MozzartOdds;
+}
+export interface MatchedOdds {
+    matchId: string;
+    flashscoreHome: string;
+    flashscoreAway: string;
+    mozzartHome: string;
+    mozzartAway: string;
+    odds: MozzartOdds;
+    scrapedAt: string;
+}

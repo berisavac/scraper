@@ -106,8 +106,8 @@ async function scrapeMatches() {
                     // Check if league is allowed
                     const fullLeague = `${currentCountry}: ${currentLeague}`.toLowerCase();
                     const isAllowed = allowedLeagues.some(allowed => {
-                        // Champions League can be under different countries, use partial match
-                        if (allowed === 'liga prvaka' || allowed === 'champions league') {
+                        // Champions League and Europa League can be under different countries, use partial match
+                        if (allowed === 'liga prvaka' || allowed === 'champions league' || allowed === 'europa league') {
                             return fullLeague.includes(allowed);
                         }
                         // For all other leagues, require EXACT match with country

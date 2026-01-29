@@ -10,7 +10,8 @@ export const ALLOWED_LEAGUES = [
     "netherlands: eredivisie",
     "switzerland: super league", // ONLY Switzerland, NOT Greece/Turkey
     "liga prvaka", // Champions League (hrvatski naziv)
-    "champions league" // Champions League (engleski naziv)
+    "champions league", // Champions League (engleski naziv)
+    "europa league" // Europa League
 ];
 // BLOCKED_COMPETITIONS is the single source of truth for league exclusions
 // All entries should be lowercase for consistent matching
@@ -52,4 +53,5 @@ export const BLOCKED_COMPETITIONS = [
     'third division',
     'tt premier league', // Trinidad and Tobago
     'premier division', // Generic name for minor leagues
+    'caf champions league', // Africa - CAF Champions League
 ];

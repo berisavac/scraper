@@ -26,8 +26,8 @@ export async function searchLinks(query: string): Promise<string[]> {
       body: JSON.stringify({
         api_key: apiKey,
         query: query,
-        search_depth: 'basic',
-        include_domains: ALLOWED_DOMAINS,
+        search_depth: 'advanced',
+        // include_domains: ALLOWED_DOMAINS,
         max_results: 5
       })
     });
